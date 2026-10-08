@@ -141,9 +141,9 @@
   footer.appfoot{text-align:center; font-size:11px; color:var(--muted); padding:8px 8px calc(8px + env(safe-area-inset-bottom));}
 
   /* Settings modal */
-  #settings{position:fixed; inset:0; background:rgba(4,4,12,.75); backdrop-filter:blur(4px);
+  #settings, #formations{position:fixed; inset:0; background:rgba(4,4,12,.75); backdrop-filter:blur(4px);
     display:none; align-items:center; justify-content:center; padding:20px; z-index:50;}
-  #settings.open{display:flex;}
+  #settings.open, #formations.open{display:flex;}
   .card{background:var(--surface2); border:1px solid rgba(168,85,247,.35); border-radius:20px;
     padding:24px; max-width:440px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,.6);}
   .card h2{margin:0 0 6px; font-size:20px;}
@@ -208,6 +208,7 @@
         <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
           <a href="https://velutian.gumroad.com/l/don-bizz-ai" id="donate-btn" target="_blank" rel="noopener" class="chip" style="text-decoration:none; display:inline-block; padding:10px 18px;"><b>❤️ Faire un don</b></a>
           <button class="chip" id="open-products2" style="padding:10px 18px;"><b>🛍️ Nos produits</b></button>
+          <button class="chip" id="open-formations" style="padding:10px 18px;"><b>🎓 Mes formations</b></button>
         </div>
       </div>
       <div id="chat" style="display:flex; flex-direction:column; gap:14px;"></div>
@@ -245,6 +246,26 @@
       </div>
     </div>
     <div class="row" style="margin-top:14px;"><button class="btn ghost" id="close-settings">Fermer</button></div>
+  </div>
+</div>
+
+<div id="formations">
+  <div class="card">
+    <h2>🎓 Mes formations</h2>
+    <p>Forme-toi avec <b>Bizz AI Academy</b> : des parcours pas à pas, en français, pensés pour toi.</p>
+    <div class="prod-grid">
+      <div class="prod-card">
+        <div class="prod-info"><b>🤖 Formation IA en 28 jours</b><span class="price">15 $ CAD</span>
+        <span style="font-size:12.5px; color:var(--muted);">28 leçons, quiz, badges et certificat. Maîtrise l'IA pas à pas, même en partant de zéro.</span>
+        <a class="btn buy" href="https://velutian.gumroad.com/l/dtrao" target="_blank" rel="noopener">S'inscrire</a></div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-info"><b>💻 Initiation Informatique</b><span class="price">Bientôt disponible</span>
+        <span style="font-size:12.5px; color:var(--muted);">Word, Excel, PowerPoint, Publisher, Access : des bases solides pour le bureau et l'emploi.</span>
+        <a class="btn buy" href="https://muse.ai/s/initiation-informatique-xos6e8qxvxbxbfxs" target="_blank" rel="noopener">Découvrir</a></div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px;"><button class="btn ghost" id="close-formations">Fermer</button></div>
   </div>
 </div>
 
@@ -478,6 +499,13 @@ var openP2 = document.getElementById("open-products2");
 if(openP2) openP2.onclick = openProducts;
 document.getElementById("close-settings").onclick = closeProducts;
 settingsEl.addEventListener("click", function(e){ if(e.target === settingsEl) closeProducts(); });
+/* Panneau Mes formations */
+var formationsEl = document.getElementById("formations");
+function openFormations(){ formationsEl.classList.add("open"); }
+function closeFormations(){ formationsEl.classList.remove("open"); }
+document.getElementById("open-formations").onclick = openFormations;
+document.getElementById("close-formations").onclick = closeFormations;
+formationsEl.addEventListener("click", function(e){ if(e.target === formationsEl) closeFormations(); });
 /* Boutons de don : visibles, le lien Gumroad est maintenant configuré */
 (function(){
   var ok = typeof DONATE_URL === "string" && DONATE_URL.indexOf("http") === 0;
