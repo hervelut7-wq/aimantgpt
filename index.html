@@ -106,6 +106,13 @@
   .msg ul,.msg ol{margin:6px 0; padding-left:20px;}
   .msg li{margin:3px 0;}
   .msg code{background:rgba(0,0,0,.35); padding:1px 6px; border-radius:6px; font-size:13px;}
+  .imggrid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px;}
+  .imgcell{display:block; border-radius:10px; overflow:hidden; background:rgba(0,0,0,.35);
+    border:1px solid rgba(168,85,247,.25); text-decoration:none;}
+  .imgcell img{width:100%; height:104px; object-fit:cover; display:block; background:#14141c;}
+  .imgcell .imgsrc{display:block; font-size:10px; color:var(--muted); padding:4px 6px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .imgloading{font-size:13px; color:var(--muted); padding:6px 0; grid-column:1/-1;}
 
   #typing[hidden]{display:none;}
   #typing{align-self:flex-start; display:flex; gap:6px; align-items:center; background:var(--surface);
@@ -276,7 +283,7 @@ var LS_CONV = "aimantgpt_conversations";
 var PROXY_URL = "https://aimantgpt.hervelut7.workers.dev/";
 var DONATE_URL = "https://velutian.gumroad.com/l/don-bizz-ai"; /* lien Gumroad du don, rempli à la publication */
 
-var SYSTEM_PROMPT = "Tu es AimantGPT, l'assistant IA de Bizz AI Academy. Tu parles uniquement en français, un français naturel et chaleureux, avec parfois des touches africaines (expressions familières, réalités de la RDC, de Kinshasa, du mobile money). Tu es chaleureux et encourageant comme un bon ami : tu motives, tu valorises les efforts de la personne, tu peux glisser une note de sagesse ou d'encouragement inspirée de la foi quand c'est naturel — mais jamais de prêche forcé, jamais de ton moralisateur. Tu aides concrètement : rédiger ou améliorer un CV, écrire une lettre de motivation, préparer un entretien d'embauche, expliquer l'informatique simplement aux débutants (Word, Excel, Internet…), répondre aux questions du quotidien. Tu comprends les réalités de l'Afrique francophone et des nouveaux arrivants au Canada. Tes réponses sont claires, structurées avec des titres et des listes quand c'est utile, adaptées au niveau de la personne. Tu comprends et parles aussi le lingala, la langue du Congo (Kinshasa) : tu es parfaitement bilingue français-lingala, comme à Kinshasa où on mélange les deux : si la personne t'écrit en lingala, réponds-lui en lingala avec chaleur ; si elle mélange, mélange aussi naturellement ; tu parsèmes tes réponses d'expressions lingala (mbote, ndenge nini, kitoko, mingi…) comme un vrai Kinois. Tu restes honnête : tu ne promets jamais ce que tu ne peux pas faire.";
+var SYSTEM_PROMPT = "Tu es AimantGPT, l'assistant IA de Bizz AI Academy. Tu parles uniquement en français, un français naturel et chaleureux, avec parfois des touches africaines (expressions familières, réalités de la RDC, de Kinshasa, du mobile money). Tu es chaleureux et encourageant comme un bon ami : tu motives, tu valorises les efforts de la personne, tu peux glisser une note de sagesse ou d'encouragement inspirée de la foi quand c'est naturel — mais jamais de prêche forcé, jamais de ton moralisateur. Tu aides concrètement : rédiger ou améliorer un CV, écrire une lettre de motivation, préparer un entretien d'embauche, expliquer l'informatique simplement aux débutants (Word, Excel, Internet…), répondre aux questions du quotidien. Tu comprends les réalités de l'Afrique francophone et des nouveaux arrivants au Canada. Tes réponses sont claires, structurées avec des titres et des listes quand c'est utile, adaptées au niveau de la personne. Tu comprends et parles aussi le lingala, la langue du Congo (Kinshasa) : tu es parfaitement bilingue français-lingala, comme à Kinshasa où on mélange les deux : si la personne t'écrit en lingala, réponds-lui en lingala avec chaleur ; si elle mélange, mélange aussi naturellement ; tu parsèmes tes réponses d'expressions lingala (mbote, ndenge nini, kitoko, mingi…) comme un vrai Kinois. Tu restes honnête : tu ne promets jamais ce que tu ne peux pas faire. IMPORTANT — images : si l'utilisateur demande à voir ou montrer une photo ou une image de quelque chose (par exemple « montre-moi la photo d'une star », « fais voir à quoi ressemble… »), termine ta réponse par le token [[IMAGES:sujet]] où sujet décrit ce qu'il faut montrer en 2 à 4 mots (exemple : [[IMAGES:Burna Boy]]). Un seul token par réponse, toujours à la toute fin. N'explique jamais ce token à l'utilisateur, il est invisible pour lui.";
 
 
 
@@ -309,6 +316,47 @@ var scrollEl = document.getElementById("scroll"),
 
 function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
+/* ---------- Images : token [[IMAGES:sujet]] dans les réponses de l'IA ---------- */
+// L'IA termine sa réponse par [[IMAGES:sujet]] quand l'utilisateur veut voir
+// une photo. On retire le token du texte affiché et on charge les images
+// depuis le worker (GET /images?q=...), en grille dans la bulle du chat.
+// Si le chargement échoue, le texte s'affiche normalement, sans images.
+function stripImgToken(t){ return String(t).replace(/\[\[IMAGES:[^\]]*\]\]/g, "").trim(); }
+
+var imageCache = {}; // sujet -> [{url, thumbnail, title, source}]
+
+function fillImgGrid(g, imgs){
+  if(!imgs || !imgs.length){
+    g.innerHTML = '<div class="imgloading">😕 Aucune image trouvée pour ça.</div>';
+    return;
+  }
+  g.innerHTML = imgs.slice(0, 6).map(function(im){
+    return '<a class="imgcell" href="' + esc(im.url) + '" target="_blank" rel="noopener">' +
+      '<img src="' + esc(im.thumbnail) + '" alt="' + esc(im.title || "") + '" loading="lazy">' +
+      '<span class="imgsrc">' + esc((im.title || "").slice(0, 42)) + '</span></a>';
+  }).join("");
+  scrollEl.scrollTop = scrollEl.scrollHeight;
+}
+
+function hydrateImages(){
+  var grids = chatEl.querySelectorAll(".imggrid");
+  for(var i = 0; i < grids.length; i++){
+    (function(g){
+      if(g.getAttribute("data-done")) return;
+      g.setAttribute("data-done", "1");
+      var q = g.getAttribute("data-q") || "";
+      if(imageCache[q]){ fillImgGrid(g, imageCache[q]); return; }
+      fetch(PROXY_URL + "images?q=" + encodeURIComponent(q))
+        .then(function(r){ if(!r.ok) throw new Error("img"); return r.json(); })
+        .then(function(imgs){ imageCache[q] = imgs || []; fillImgGrid(g, imageCache[q]); })
+        .catch(function(){
+          var l = g.querySelector(".imgloading");
+          if(l) l.textContent = "⚠️ Images indisponibles pour le moment.";
+        });
+    })(grids[i]);
+  }
+}
+
 function liteMd(t){
   var h = esc(t);
   h = h.replace(/^### (.*)$/gm, "<h4>$1</h4>");
@@ -333,12 +381,19 @@ function renderChat(){
       d.className = "msg " + (m.role === "user" ? "user" : "ai");
       if(m.role === "user"){ d.textContent = m.text; }
       else{
-        d.innerHTML = '<div class="who">🧲 AimantGPT</div><div>' + liteMd(m.text) + "</div>";
+        var qm = String(m.text).match(/\[\[IMAGES:([^\]]+)\]\]/);
+        var html = '<div class="who">🧲 AimantGPT</div><div>' + liteMd(stripImgToken(m.text)) + "</div>";
+        if(qm && qm[1].trim()){
+          html += '<div class="imggrid" data-q="' + esc(qm[1].trim()) + '">' +
+                  '<div class="imgloading">🖼️ Je cherche les images…</div></div>';
+        }
+        d.innerHTML = html;
       }
       chatEl.appendChild(d);
     });
   }
   scrollEl.scrollTop = scrollEl.scrollHeight;
+  hydrateImages();
 }
 
 function renderList(){
@@ -367,7 +422,7 @@ function addMessage(role, text){
 /* ---------- Proxy AimantGPT (Cloudflare, clé cachée côté serveur) ---------- */
 function callProxy(history){
   var contents = history.slice(-12).map(function(m){
-    return { role: m.role === "user" ? "user" : "model", parts: [{ text: m.text }] };
+    return { role: m.role === "user" ? "user" : "model", parts: [{ text: stripImgToken(m.text) }] };
   });
   return fetch(PROXY_URL, {
     method: "POST",
